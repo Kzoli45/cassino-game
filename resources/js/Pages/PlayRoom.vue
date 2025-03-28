@@ -25,6 +25,9 @@ const playerHand = ref([]);
 const opponentHand = ref([]);
 const table = ref([]);
 
+const playerSelected = ref([]);
+const tableSelected = ref([]);
+
 const startGame = async () => {
     await axios.post(`/api/deal-cards/${props.room.room_code}`, {
         isFirstRound: true
@@ -47,6 +50,20 @@ window.Echo.channel('room.' + props.room.room_code)
 
         playRoom.animateDealing(myHand.value, opponentHandHidden.value, table.value);
     });
+
+    const selectCard = (card) => {
+        let cardElement = document.getElementById(`player-card-${card.id}`);
+        if (!cardElement) {
+            cardElement = document.getElementById(`table-card-${card.id}`);
+        }
+
+        if (cardElement) {
+            playRoom.selectAnimation(cardElement, playerSelected, tableSelected, myHand.value, table.value , () => {
+                console.log(playerSelected.value, tableSelected.value);
+            });
+        }
+    }
+    
 
 </script>
 
@@ -83,7 +100,7 @@ window.Echo.channel('room.' + props.room.room_code)
                         <div v-show="table.length === 0">
                             <Card class="placeholder opacity-0"/>
                         </div>
-                        <Card v-for="card in table" :key="card.id" :card="card" :id="`table-card-${card.id}`" class="cursor-pointer">
+                        <Card v-for="card in table" :key="card.id" :card="card" :id="`table-card-${card.id}`" class="cursor-pointer" @click="selectCard(card)">
                             <template #front>
                                 <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
                                 <span :class="{'text-red-600': isCardRed(card)}">{{ card.value }}</span>
@@ -110,6 +127,11 @@ window.Echo.channel('room.' + props.room.room_code)
                     </div>
                     <div v-else-if ="cardDeck.length === 52 && $page.props.auth.user.id === room.player2_id">
                         <h1 class="text-white">Waiting for room owner to start the game..</h1>
+                    </div>
+                    <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected)">
+                        <PrimaryButton class="mb-6">
+                            Play Card
+                        </PrimaryButton>
                     </div>  
                     <div v-else>
                         <PrimaryButton class="mb-6 opacity-0" disabled>
@@ -125,7 +147,7 @@ window.Echo.channel('room.' + props.room.room_code)
                         <div v-show="myHand.length === 0">
                             <Card class="opacity-0"/>
                         </div>
-                        <Card v-for="card in myHand" :key="card.id" :card="card" :id="`player-card-${card.id}`" class="cursor-pointer">
+                        <Card v-for="card in myHand" :key="card.id" :card="card" :id="`player-card-${card.id}`" class="cursor-pointer" @click="selectCard(card)">
                         <template #front>
                             <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
                             <span :class="{'text-red-600': isCardRed(card)}">{{ card.value }}</span>

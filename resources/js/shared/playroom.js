@@ -100,6 +100,65 @@ export const playRoom = reactive({
                 }, "+=0.1");
             }
         });
-    }
+    },
+
+    isLogicalMove(playerSelected, tableSelected) {
+        let isLogical = false;
+        if (playerSelected.length === 1 && tableSelected.length === 0 || playerSelected.length > 0 && tableSelected.length > 0) {
+            isLogical = true;
+        }
+
+        return isLogical;
+    },
+
+    isLegalMove(arrA, arrB) {
+        let isLegal = false;
+        let sumA = arrA.reduce((acc, card) => acc + getCardValue(card), 0);
+        let sumB = arrB.reduce((acc, card) => acc + getCardValue(card), 0);
+    
+        if (sumA === sumB && sumA !== 0 && sumA <= 13) {
+            isLegal = true;
+        }
+        return isLegal;
+    },
+
+    selectAnimation(card, playerSelected, tableSelected, playerHand, table, callback) {
+        if (card.classList.contains('selected')) {
+            gsap.to(card, { 
+                y: 0, 
+                duration: 0.3, 
+                ease: "power2.out", 
+                onComplete: () => {
+                    card.classList.remove('selected');
+                    if (card.closest('.table-hand')) {
+                        const cardId = card.id.split('-')[2];
+                        tableSelected.value = tableSelected.value.filter(c => c.id !== cardId); 
+                    } else {
+                        const cardId = card.id.split('-')[2];
+                        playerSelected.value = playerSelected.value.filter(c => c.id !== cardId);
+                    }
+                }
+            });
+        } else {
+            gsap.to(card, { 
+                y: -20, 
+                duration: 0.3, 
+                ease: "power2.out", 
+                onComplete: () => {
+                    card.classList.add('selected');
+                    if (card.closest('.table-hand')) {
+                        const cardId = card.id.split('-')[2];
+                        const matchedCard = table.find(c => c.id === cardId);
+                        tableSelected.value.push(matchedCard);
+                    } else {
+                        const cardId = card.id.split('-')[2];
+                        const matchedCard = playerHand.find(c => c.id === cardId);
+                        playerSelected.value.push(matchedCard);
+                    }
+                    if (callback) callback();
+                }
+            });
+        }
+    },
 });
 
