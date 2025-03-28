@@ -2,92 +2,55 @@
 
 namespace App\Http\Controllers;
 
-use Inertia\Inertia;
 use App\Models\GameRoom;
-use Illuminate\Support\Str;
+use App\Events\CardsDealt;
+use App\Events\PlayerReady;
 use Illuminate\Http\Request;
-use App\Events\PlayerJoinedRoom;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Redis;
 
 class GameController extends Controller
 {
-    public function vsComputer()
+
+    // public function readyUp(Request $request)
+    // {
+    //     $room = GameRoom::where('room_code', $request->roomCode)->first();
+    //     $player = $request->player;
+
+    //     if ($player == $room->player1_id) {
+    //         Redis::set('room.' . $room->room_code . '.player1-ready', 1);
+    //     } else {
+    //         Redis::set('room.' . $room->room_code . '.player2-ready', 1);
+    //     }
+
+    //     broadcast(new PlayerReady($room, Auth::user()));
+    // }
+
+    public function dealCards(Request $request, $roomCode)
     {
-        return Inertia::render('Computer');
-    }
+        $room = GameRoom::where('room_code', $roomCode)->firstOrFail();
 
-    public function room()
-    {
-        return Inertia::render('Room');
-    }
+        $isFirstRound = $request->input('isFirstRound', false);
 
-    public function createRoom()
-    {
-        do {
-            $roomCode = Str::random(8);
-        } while (GameRoom::where('room_code', $roomCode)->exists());
+        $deck = json_decode(Redis::get($room->room_code . '.deck'), true);
 
-        $room = GameRoom::create([
-            'room_code' => $roomCode,
-            'player1_id' => Auth::id(),
-        ]);
-
-        return redirect()->route('room.show', $room->room_code);
-    }
-
-
-
-    public function joinRoom(Request $request)
-    {
-        $request->validate([
-            'room_code' => 'required|string|size:8',
-        ]);
-
-        $room = GameRoom::where('room_code', $request->room_code)->first();
-
-        if (!$room) {
-            return back()->withErrors(['room_code' => 'Room not found.']);
+        if (!$deck || count($deck) < 6) {
+            return response()->json(['error' => 'Not enough cards in deck'], 400);
         }
 
-        if ($room->player2_id) {
-            return back()->withErrors(['room_code' => 'Room is full.']);
-        }
+        $playerHand = array_splice($deck, 0, 3);
+        $opponentHand = array_splice($deck, 0, 3);
 
-        $room->update([
-            'player2_id' => Auth::id(),
-        ]);
+        $table = $isFirstRound ? array_splice($deck, 0, 4) : json_decode(Redis::get($room->room_code . '.table'), true);
 
-        broadcast(new PlayerJoinedRoom($room));
+        Redis::set($room->room_code . '.deck', json_encode($deck));
+        Redis::set($room->room_code . '.playerHand.' . $room->player1_id, json_encode($playerHand));
+        Redis::set($room->room_code . '.opponentHand.' . $room->player2_id, json_encode($opponentHand));
+        Redis::set($room->room_code . '.table', json_encode($table));
 
-        return redirect()->route('room.show', $room->room_code);
+        broadcast(new CardsDealt($room->room_code, $playerHand, $opponentHand, $table, $deck));
 
-        sleep(3);
-    }
-
-    public function showRoom($roomCode)
-    {
-        $room = GameRoom::where('room_code', $roomCode)
-            ->with('player1', 'player2')
-            ->firstOrFail();
-
-        return Inertia::render('ShowRoom', [
-            'room' => $room,
-        ]);
-    }
-
-    public function playRoom($roomCode)
-    {
-        $room = GameRoom::where('room_code', $roomCode)
-            ->with('player1', 'player2')
-            ->firstOrFail();
-
-        return Inertia::render('PlayRoom', [
-            'room' => $room,
-        ]);
-    }
-
-    public function cleanupRooms()
-    {
-        GameRoom::whereNull('player1_id')->orWhereNull('player2_id')->delete();
+        return response()->json(['message' => 'Cards dealt successfully']);
     }
 }

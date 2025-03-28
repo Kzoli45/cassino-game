@@ -1,6 +1,8 @@
 <script setup>
 import { defineProps, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
+import { playRoom } from '@/shared/playroom';
+import axios from 'axios';
 
 const props = defineProps({
     room: Object,
@@ -13,9 +15,17 @@ window.Echo.channel('room.' + props.room.room_code)
         room.value = e.room;
     });
 
-watch(() => room.value, 
-    (newRoom) => {
+watch(() => room.value, async(newRoom) => {
         if (newRoom.player1 && newRoom.player2) {
+
+            if (!localStorage.getItem(`deck-${newRoom.room_code}`)) {
+            let deck = JSON.stringify(playRoom.deck);
+
+            await axios.post(`/api/store-deck/${newRoom.room_code}`, { deck });
+
+            localStorage.setItem(`deck-${newRoom.room_code}`, 'true');
+        }
+
             setTimeout(() => {
                 router.visit(`/rooms/${newRoom.room_code}/play`);
             }, 2000);
