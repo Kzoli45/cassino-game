@@ -1,5 +1,5 @@
 import { nextTick, reactive } from "vue";
-import { createDeck, shuffleDeck, createCards } from "@/shared/deck";
+import { createDeck, shuffleDeck, createCards, getCardValue } from "@/shared/deck";
 import gsap from "gsap";
 import axios from "axios";
 
@@ -7,6 +7,8 @@ export const playRoom = reactive({
     deck: createCards(shuffleDeck(createDeck())),
     dealing: false,
     placing: false,
+    capturing: false,
+    wasIllegalMove: false,
 
     dealCards(numCards) {
         let cards = [];
@@ -219,6 +221,22 @@ export const playRoom = reactive({
                     }
                 })
             }
+    },
+
+    async captureCards(playerSelected, tableSelected, roomCode) {
+        if (playRoom.isLegalMove(playerSelected, tableSelected)) {
+            await axios.post(`/api/capture-cards/${roomCode}`, {
+                playerCards: playerSelected,
+                tableCards: tableSelected,
+            })
+
+        }
+        else {
+            playRoom.wasIllegalMove = true;
+            setTimeout(() => {
+                playRoom.wasIllegalMove = false;
+            }, 1000);
+        }
     }
 });
 

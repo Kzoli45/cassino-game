@@ -23,10 +23,15 @@ const isPlayer1 = computed(() => props.player.id === props.room.player1_id);
 const myHand = computed(() => (isPlayer1.value ? playerHand.value : opponentHand.value));
 const opponentHandHidden = computed(() => (isPlayer1.value ? opponentHand.value : playerHand.value));
 
+const myTaken = computed(() => (isPlayer1.value ? playerTakenCards.value : opponentTakenCards.value));
+const opponentTaken = computed(() => (isPlayer1.value ? opponentTakenCards.value : playerTakenCards.value));
+
 const cardDeck = ref(props.deck);
 const playerHand = ref([]);
 const opponentHand = ref([]);
 const table = ref([]);
+const playerTakenCards = ref([]);
+const opponentTakenCards = ref([]);
 
 const playerSelected = ref([]);
 const tableSelected = ref([]);
@@ -39,7 +44,7 @@ const startGame = async () => {
 
 window.Echo.channel('room.' + props.room.room_code)
     .listen('CardsDealt', async (e) => {
-        console.log(e);
+        //console.log(e);
         playerHand.value = [];
         opponentHand.value = [];
         table.value = [];
@@ -71,6 +76,18 @@ window.Echo.channel('room.' + props.room.room_code)
             }
         }, { immediate: true, flush: 'post'
         })
+    })
+    .listen('CardsCaptured', async(e) => {
+        console.log(e);
+        const authUserId = page.props.auth.user.id;
+
+        playerHand.value = e.playerHand;
+        opponentHand.value = e.opponentHand;
+        table.value = e.table;
+        playerTakenCards.value = e.playerTaken == null ? playerTakenCards.value : e.playerTaken;
+        opponentTakenCards.value = e.opponentTaken == null ? opponentTakenCards.value : e.opponentTaken;
+        playerSelected.value = [];
+        tableSelected.value = [];
     });
 
     const selectCard = (card) => {
@@ -81,12 +98,10 @@ window.Echo.channel('room.' + props.room.room_code)
 
         if (cardElement) {
             playRoom.selectAnimation(cardElement, playerSelected, tableSelected, myHand.value, table.value , () => {
-                console.log(playerSelected.value, tableSelected.value);
+                //console.log(playerSelected.value, tableSelected.value);
             });
         }
     }
-    
-
 </script>
 
 <template>
@@ -96,6 +111,12 @@ window.Echo.channel('room.' + props.room.room_code)
                 <div class="flex flex-row gap-4 items-center justify-between m-2 w-full">
                     <TakenCards class="opponent-pile">
                         <Card class="opacity-0 absolute" id="opponent-template-card"/>
+                        <HiddenCard v-for="card in opponentTaken" :key="card.id" :card="card" :id="`taken-card-${card.id}`" class="absolute">
+                        <template #back>
+                            <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
+                            <span :class="{'text-red-600': isCardRed(card)}">{{ card.value }}</span>
+                        </template>
+                    </HiddenCard>
                     </TakenCards>
                 <div class="flex flex-row flex-wrap gap-4 items-center justify-center flex-grow opponent-hand">
                     <div v-show="opponentHandHidden.length === 0">
@@ -142,6 +163,9 @@ window.Echo.channel('room.' + props.room.room_code)
 
             <div class="player-side flex flex-row items-center justify-center w-full">
                 <div class="flex flex-col items-center justify-center gap-4 w-full">
+                    <div v-show="playRoom.wasIllegalMove">
+                        <p class="text-red-600 transition">Illegal move!</p>
+                    </div>
                     <div v-if="cardDeck.length === 52 && $page.props.auth.user.id === room.player1_id">
                         <PrimaryButton class="mb-6" @click="startGame">
                             Start Game
@@ -151,7 +175,7 @@ window.Echo.channel('room.' + props.room.room_code)
                         <h1 class="text-white">Waiting for room owner to start the game..</h1>
                     </div>
                     <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected)">
-                        <PrimaryButton class="mb-6" @click="playRoom.placeCard(playerSelected, tableSelected, props.room.room_code)">
+                        <PrimaryButton class="mb-6" @click="playRoom.captureCards(playerSelected, tableSelected, props.room.room_code)">
                             Play Card
                         </PrimaryButton>
                     </div>  
@@ -163,8 +187,13 @@ window.Echo.channel('room.' + props.room.room_code)
                     <div class="flex flex-row gap-4 items-center justify-between m-2 w-full">
                         <TakenCards class="player-pile">
                             <Card class="opacity-0 absolute" id="template-card"/>
+                            <HiddenCard v-for="card in myTaken" :key="card.id" :card="card" :id="`taken-card-${card.id}`" class="absolute">
+                                <template #back>
+                                    <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
+                                    <span :class="{'text-red-600': isCardRed(card)}">{{ card.value }}</span>
+                                </template>
+                            </HiddenCard>
                         </TakenCards>
-                    </div>
                     <div class="flex flex-row flex-wrap gap-4 items-center justify-center flex-grow player-hand">
                         <div v-show="myHand.length === 0">
                             <Card class="opacity-0"/>
@@ -178,6 +207,7 @@ window.Echo.channel('room.' + props.room.room_code)
                     </div>
                     <div class="flex flex-row items-center justify-center ">
                 </div>
+            </div>
                 </div>
             </div>
         </div>

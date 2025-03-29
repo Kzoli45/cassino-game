@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/store-deck/{roomCode}', [RoomController::class, 'storeDeck']);
     Route::post('/api/deal-cards/{roomCode}', [GameController::class, 'dealCards']);
     Route::post('/api/place-card/{roomCode}', [GameController::class, 'placeCard']);
+    Route::post('/api/capture-cards/{roomCode}', [GameController::class, 'captureCards']);
     //Route::post('/rooms/{roomCode}/ready/{player}', [GameController::class, 'readyUp'])->name('player.ready');
 });
 

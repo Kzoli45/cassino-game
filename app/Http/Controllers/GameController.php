@@ -7,6 +7,7 @@ use App\Events\CardPlaced;
 use App\Events\CardsDealt;
 use App\Events\PlayerReady;
 use Illuminate\Http\Request;
+use App\Events\CardsCaptured;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redis;
@@ -82,5 +83,52 @@ class GameController extends Controller
         broadcast(new CardPlaced($room->room_code, $card, $playerId, $table, $playerHand, $opponentHand));
 
         return response()->json(['message' => 'Card placed']);
+    }
+
+    public function captureCards(Request $request, $roomCode)
+    {
+        $room = GameRoom::where('room_code', $roomCode)->firstOrFail();
+        $playerId = Auth::id();
+
+        $playerCaptured = $request->input('playerCards');
+        $tableCaptured = $request->input('tableCards');
+
+        $playerHandKey = $room->player1_id == $playerId
+            ? 'playerHand.' . $room->player1_id
+            : 'opponentHand.' . $room->player2_id;
+
+        $playerTakenKey = $room->player1_id == $playerId
+            ? 'playerTaken.' . $room->player1_id
+            : 'opponentTaken.' . $room->player2_id;
+
+        $opponentTakenKey = $room->player1_id == $playerId
+            ? 'opponentTaken.' . $room->player2_id
+            : 'playerTaken.' . $room->player1_id;
+
+        $table = json_decode(Redis::get($room->room_code . '.table'), true) ?? [];
+        $table = array_filter($table, fn($c) => !in_array($c['id'], array_column($tableCaptured, 'id')));
+        Redis::set($room->room_code . '.table', json_encode(array_values($table)));
+
+        // Remove captured cards from player's hand
+        $playerHand = json_decode(Redis::get($room->room_code . '.' . $playerHandKey), true) ?? [];
+        $playerHand = array_filter($playerHand, fn($c) => !in_array($c['id'], array_column($playerCaptured, 'id')));
+        Redis::set($room->room_code . '.' . $playerHandKey, json_encode(array_values($playerHand)));
+
+        $playerTaken = Redis::exists($room->room_code . '.' . $playerTakenKey)
+            ? json_decode(Redis::get($room->room_code . '.' . $playerTakenKey), true)
+            : [];
+
+        $playerTaken = array_merge($playerTaken, $playerCaptured, $tableCaptured);
+        Redis::set($room->room_code . '.' . $playerTakenKey, json_encode(array_values($playerTaken)));
+
+        $table = json_decode(Redis::get($room->room_code . '.table'), true);
+        $playerHand = json_decode(Redis::get($room->room_code . '.playerHand.' . $room->player1_id), true);
+        $opponentHand = json_decode(Redis::get($room->room_code . '.opponentHand.' . $room->player2_id), true);
+        $playerTaken = json_decode(Redis::get($room->room_code . '.playerTaken.' . $room->player1_id), true);
+        $opponentTaken = json_decode(Redis::get($room->room_code . '.opponentTaken.' . $room->player2_id), true);
+
+        broadcast(new CardsCaptured($room->room_code, $playerId, $playerCaptured, $tableCaptured, $table, $playerHand, $opponentHand, $playerTaken, $opponentTaken));
+
+        return response()->json(['message' => 'Cards captured']);
     }
 }
