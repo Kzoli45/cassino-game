@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GameRoom;
+use App\Events\CardPlaced;
 use App\Events\CardsDealt;
 use App\Events\PlayerReady;
 use Illuminate\Http\Request;
@@ -51,6 +52,35 @@ class GameController extends Controller
 
         broadcast(new CardsDealt($room->room_code, $playerHand, $opponentHand, $table, $deck));
 
-        return response()->json(['message' => 'Cards dealt successfully']);
+        return response()->json(['message' => 'Cards']);
+    }
+
+    public function placeCard(Request $request, $roomCode)
+    {
+        $room = GameRoom::where('room_code', $roomCode)->firstOrFail();
+        $playerId = Auth::id();
+
+        $card = $request->input('card');
+
+        $table = json_decode(Redis::get($room->room_code . '.table'), true) ?? [];
+
+        $table[] = $card;
+        Redis::set($room->room_code . '.table', json_encode($table));
+
+        $playerHandKey = $room->player1_id == $playerId
+            ? 'playerHand.' . $room->player1_id
+            : 'opponentHand.' . $room->player2_id;
+
+        $playerHand = json_decode(Redis::get($room->room_code . '.' . $playerHandKey), true);
+        $playerHand = array_filter($playerHand, fn($c) => $c['id'] !== $card['id']);
+        Redis::set($room->room_code . '.' . $playerHandKey, json_encode(array_values($playerHand)));
+
+        $table = json_decode(Redis::get($room->room_code . '.table'), true);
+        $playerHand = json_decode(Redis::get($room->room_code . '.playerHand.' . $room->player1_id), true);
+        $opponentHand = json_decode(Redis::get($room->room_code . '.opponentHand.' . $room->player2_id), true);
+
+        broadcast(new CardPlaced($room->room_code, $card, $playerId, $table, $playerHand, $opponentHand));
+
+        return response()->json(['message' => 'Card placed']);
     }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { defineProps, ref, computed, nextTick } from 'vue';
+import { defineProps, ref, computed, nextTick, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { router } from '@inertiajs/vue3';
 import Card from '@/Components/Card.vue';
@@ -7,6 +7,7 @@ import HiddenCard from '@/Components/HiddenCard.vue';
 import TakenCards from '@/Components/TakenCards.vue';
 import { isCardRed } from '@/shared/deck';
 import { playRoom } from '@/shared/playroom';
+import { usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     room: Object,
@@ -14,6 +15,8 @@ const props = defineProps({
     opponent: Object,
     deck: Array,
 })
+
+const page = usePage();
 
 const isPlayer1 = computed(() => props.player.id === props.room.player1_id);
 
@@ -49,6 +52,25 @@ window.Echo.channel('room.' + props.room.room_code)
         cardDeck.value = e.deck;
 
         playRoom.animateDealing(myHand.value, opponentHandHidden.value, table.value);
+    })
+    .listen('CardPlaced', async (e) => {
+        console.log(e);
+        const authUserId = page.props.auth.user.id;
+
+        await nextTick();
+
+        await playRoom.placeCardAnimation(e.card, e.playerId === authUserId ? 'player-card' : 'opponent-card', table.value, e.playerId === authUserId? false : true);
+
+        watch(() => playRoom.placing, (newValue) => {
+            if (!newValue) {
+                playerHand.value = e.playerHand;
+                opponentHand.value = e.opponentHand;
+                table.value = e.table;
+                playerSelected.value = [];
+                tableSelected.value = [];
+            }
+        }, { immediate: true, flush: 'post'
+        })
     });
 
     const selectCard = (card) => {
@@ -129,7 +151,7 @@ window.Echo.channel('room.' + props.room.room_code)
                         <h1 class="text-white">Waiting for room owner to start the game..</h1>
                     </div>
                     <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected)">
-                        <PrimaryButton class="mb-6">
+                        <PrimaryButton class="mb-6" @click="playRoom.placeCard(playerSelected, tableSelected, props.room.room_code)">
                             Play Card
                         </PrimaryButton>
                     </div>  

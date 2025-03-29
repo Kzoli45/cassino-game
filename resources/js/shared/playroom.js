@@ -1,10 +1,12 @@
 import { nextTick, reactive } from "vue";
 import { createDeck, shuffleDeck, createCards } from "@/shared/deck";
 import gsap from "gsap";
+import axios from "axios";
 
 export const playRoom = reactive({
     deck: createCards(shuffleDeck(createDeck())),
     dealing: false,
+    placing: false,
 
     dealCards(numCards) {
         let cards = [];
@@ -64,7 +66,6 @@ export const playRoom = reactive({
             onComplete: () => {
                 setTimeout(() => {
                     playRoom.dealing = false;
-                    console.log("Dealing finished!");
                 }, 500);
             }
         });
@@ -160,5 +161,64 @@ export const playRoom = reactive({
             });
         }
     },
+
+    async placeCard(playerSelected, tableSelected, roomCode) {
+        if (playerSelected.length === 1 && tableSelected.length === 0) {
+            const card = playerSelected[0];
+
+            await axios.post(`/api/place-card/${roomCode}`, {
+                card: card,
+            })
+        }
+    },
+
+    async placeCardAnimation(card, hand, table, shouldFlip) {
+        await nextTick();
+
+        playRoom.placing = true;
+
+        const selectedCard = card;
+        const cardElement = document.getElementById(`${hand}-${selectedCard.id}`);
+        const cardInner = cardElement.querySelector('.card-inner');
+    
+        if (cardElement) {
+            const tableElement = document.querySelector('.table-hand');
+            const tableCards = tableElement.querySelectorAll('.card:not(.opacity-0)');
+            let targetX, targetY;
+    
+                if (table.length > 0) {
+                    const lastTableCard = tableCards[tableCards.length - 1];
+                    const lastCardRect = lastTableCard.getBoundingClientRect();
+                    const tableRect = tableElement.getBoundingClientRect();
+                    const gap = 16;
+    
+                    targetX = lastCardRect.right - tableRect.left + gap;
+                    targetY = lastCardRect.top - tableRect.top;
+                } else {
+                    targetX = 0;
+                    targetY = 0;
+                }
+    
+                const cardRect = cardElement.getBoundingClientRect();
+                const tableRect = tableElement.getBoundingClientRect();
+    
+                const deltaX = targetX - (cardRect.left - tableRect.left);
+                const deltaY = targetY - (cardRect.top - tableRect.top);
+
+                gsap.set(cardInner, { rotateY: shouldFlip? -180 : 0, duration: 0.6, delay: 0.1 });
+
+                gsap.to(cardElement, {
+                    x: deltaX,
+                    y: deltaY,
+                    duration: 0.6,
+                    ease: "power2.inOut",
+                    onComplete: () => {
+                        nextTick(() => {
+                            playRoom.placing = false;
+                        })
+                    }
+                })
+            }
+    }
 });
 
