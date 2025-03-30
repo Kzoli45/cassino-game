@@ -53,10 +53,10 @@ export const gameStore = reactive({
     nextTurn() {
         if (gameStore.isGameOver) return;
 
-        console.log('current player:', gameStore.currentPlayer);
-        console.log('lastToCapture:', gameStore.lastToCapture);
-        console.log('opponent hand:', handStore.opponentHand);
-        console.log('playerhand', handStore.playerHand);
+        // console.log('current player:', gameStore.currentPlayer);
+        // console.log('lastToCapture:', gameStore.lastToCapture);
+        // console.log('opponent hand:', handStore.opponentHand);
+        // console.log('playerhand', handStore.playerHand);
 
         if (gameStore.currentPlayer === 2 && handStore.dealing) return;
 
@@ -102,8 +102,8 @@ export const gameStore = reactive({
                         gameStore.endGame();
                     }
                 }, { immediate: false });
-                console.log(handStore.playerTaken);
-                console.log(handStore.opponentTaken);
+                // console.log(handStore.playerTaken);
+                // console.log(handStore.opponentTaken);
             }
             return true;
         }

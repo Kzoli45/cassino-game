@@ -78,16 +78,25 @@ window.Echo.channel('room.' + props.room.room_code)
         })
     })
     .listen('CardsCaptured', async(e) => {
-        console.log(e);
+        //console.log(e);
         const authUserId = page.props.auth.user.id;
 
-        playerHand.value = e.playerHand;
-        opponentHand.value = e.opponentHand;
-        table.value = e.table;
-        playerTakenCards.value = e.playerTaken == null ? playerTakenCards.value : e.playerTaken;
-        opponentTakenCards.value = e.opponentTaken == null ? opponentTakenCards.value : e.opponentTaken;
-        playerSelected.value = [];
-        tableSelected.value = [];
+        await nextTick();
+
+        await playRoom.captureCardsAnimation(e.playerCaptured, e.tableCaptured, e.playerId === authUserId ? 'player-card' : 'opponent-card', e.playerId === authUserId? false : true);
+
+        watch(() => playRoom.capturing, (newValue) => {
+            if (!newValue) {
+                playerHand.value = e.playerHand;
+                opponentHand.value = e.opponentHand;
+                table.value = e.table;
+                playerTakenCards.value = e.playerTaken == null ? playerTakenCards.value : e.playerTaken;
+                opponentTakenCards.value = e.opponentTaken == null ? opponentTakenCards.value : e.opponentTaken;
+                playerSelected.value = [];
+                tableSelected.value = [];
+            }
+        }, { immediate: true, flush: 'post'
+        })
     });
 
     const selectCard = (card) => {
@@ -175,7 +184,7 @@ window.Echo.channel('room.' + props.room.room_code)
                         <h1 class="text-white">Waiting for room owner to start the game..</h1>
                     </div>
                     <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected)">
-                        <PrimaryButton class="mb-6" @click="playRoom.captureCards(playerSelected, tableSelected, props.room.room_code)">
+                        <PrimaryButton class="mb-6" @click="playRoom.playerMove(playerSelected, tableSelected, props.room.room_code)">
                             Play Card
                         </PrimaryButton>
                     </div>  

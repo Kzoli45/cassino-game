@@ -174,6 +174,33 @@ export const playRoom = reactive({
         }
     },
 
+    async captureCards(playerSelected, tableSelected, roomCode) {
+        if (playRoom.isLegalMove(playerSelected, tableSelected)) {
+            await axios.post(`/api/capture-cards/${roomCode}`, {
+                playerCards: playerSelected,
+                tableCards: tableSelected,
+            })
+
+        }
+        else {
+            playRoom.wasIllegalMove = true;
+            setTimeout(() => {
+                playRoom.wasIllegalMove = false;
+            }, 1000);
+        }
+    },
+
+    playerMove(playerSelected, tableSelected, roomCode) {
+        if (playRoom.isLogicalMove(playerSelected, tableSelected)) {
+            if (playerSelected.length === 1 && tableSelected.length === 0) {
+                playRoom.placeCard(playerSelected, tableSelected, roomCode);
+            }
+            else {
+                playRoom.captureCards(playerSelected, tableSelected, roomCode);
+            }
+        }
+    },
+
     async placeCardAnimation(card, hand, table, shouldFlip) {
         await nextTick();
 
@@ -223,20 +250,118 @@ export const playRoom = reactive({
             }
     },
 
-    async captureCards(playerSelected, tableSelected, roomCode) {
-        if (playRoom.isLegalMove(playerSelected, tableSelected)) {
-            await axios.post(`/api/capture-cards/${roomCode}`, {
-                playerCards: playerSelected,
-                tableCards: tableSelected,
-            })
+    async captureCardsAnimation(playerSelected, tableSelected, hand, shouldFlip) {
+        const playerCards = playerSelected;
+        const tableCards = tableSelected;
 
-        }
-        else {
-            playRoom.wasIllegalMove = true;
-            setTimeout(() => {
-                playRoom.wasIllegalMove = false;
-            }, 1000);
-        }
-    }
+        playRoom.capturing = true
+
+        const cardsToAnimate = [
+            ...playerCards.map(card => `#${hand}-${card.id}`),
+            ...tableCards.map(card => `#table-card-${card.id}`)
+        ]
+
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+    
+        const templateCard = document.querySelector('#template-card');
+        const templateRect = templateCard.getBoundingClientRect();
+        const templateCenterX = templateRect.left + templateRect.width / 2;
+        const templateCenterY = templateRect.top + templateRect.height / 2;
+    
+        const templateX = templateCenterX - centerX;
+        const templateY = templateCenterY - centerY;
+
+        const overlay = playRoom.createOverlay();
+        document.body.appendChild(overlay);
+
+        const timeline = gsap.timeline({
+            onStart: () => {
+                gsap.set(overlay, { opacity: 1, duration: 0.3 });
+            },
+            onComplete: () => {
+                gsap.to(overlay, { opacity: 0, duration: 0.3, onComplete: () => {
+                    overlay.remove();
+                    nextTick(() => {
+                        playRoom.capturing = false;
+                    })
+                }});
+            }
+        })
+
+        cardsToAnimate.forEach(selector => {
+            //console.log(selector)
+            const cardElement = document.querySelector(selector);
+            if (!cardElement) return;
+
+            const cardRect = cardElement.getBoundingClientRect();
+            const currentX = cardRect.left + cardRect.width / 2;
+            const currentY = cardRect.top + cardRect.height / 2;
+    
+            const deltaXToCenter = centerX - currentX;
+            const deltaYToCenter = centerY - currentY;
+
+            if (selector.includes(hand)) {
+                const inner = cardElement.querySelector('.card-inner');
+                gsap.set(inner, { rotateY: shouldFlip ? -180 : 0, duration: 0.2 });
+            }
+
+            gsap.set(cardElement, { zIndex: 100, pointerEvents: 'none' });
+
+            timeline.to(cardElement, {
+                x: `+=${deltaXToCenter}`,
+                y: `+=${deltaYToCenter}`,
+                scale: 1.5,
+                duration: 0.5,
+                ease: "power2.inOut"
+            });
+        })
+
+        timeline.to(cardsToAnimate.map(selector => document.querySelector(selector)), {
+            x: `+=${templateX}`,
+            y: `+=${templateY}`,
+            scale: 1,
+            duration: 0.7,
+            ease: "power2.inOut",
+            onStart: () => {
+                cardsToAnimate.forEach(selector => {
+                    const cardElement = document.querySelector(selector);
+                    //console.log(cardElement)
+                    const inner = cardElement.querySelector('.card-inner');
+                    if (inner) {
+                        gsap.to(inner, { rotateY: 180, duration: 0.2, ease: "power1.inOut" });
+                    }
+                }
+            )},
+
+            onComplete: () => {
+                cardsToAnimate.forEach(selector => {
+                    const cardElement = document.querySelector(selector);
+                    if (cardElement) {
+                        gsap.set(cardElement, { zIndex: 0 });
+                    }
+                });
+            }
+        });
+
+    },
+
+    createOverlay() {
+        const overlay = document.createElement('div');
+            overlay.id = 'dim-overlay';
+            Object.assign(overlay.style, {
+                position: 'fixed',
+                top: '0',
+                left: '0',
+                width: '100vw',
+                height: '100vh',
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                zIndex: '50',
+                pointerEvents: 'auto',
+                opacity: '0'
+            });
+
+        return overlay;
+    },
 });
 
