@@ -24,7 +24,7 @@ export const playRoom = reactive({
         playRoom.deck = createCards(shuffleDeck(createDeck()));
     },
 
-    async animateDealing(playerHand, opponentHand, table) {
+    async animateDealing(playerHand, opponentHand, table, round) {
         await nextTick();
 
         const deckCards = document.querySelectorAll("#deck .card");
@@ -41,7 +41,7 @@ export const playRoom = reactive({
         const maxRounds = Math.max(playerHand.length, opponentHand.length, table.length);
 
         for (let i = 0; i < maxRounds; i++) {
-            if (table[i]) {
+            if (round <= 1 && table[i]) {
                 dealingOrder.push({ selector: `#table-card-${table[i].id}`, shouldFlip: true });
             }
             if (playerHand[i]) {

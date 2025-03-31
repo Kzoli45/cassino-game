@@ -20,15 +20,23 @@ class CardsDealt implements ShouldBroadcastNow
     public $opponentHand;
     public $table;
     public $deck;
+    public $currentPlayer;
+    public $lastToCapture;
+    public $round;
+    public $gameOver;
 
 
-    public function __construct($roomCode, $playerHand, $opponentHand, $table, $deck)
+    public function __construct($roomCode, $playerHand, $opponentHand, $table, $deck, $currentPlayer, $lastToCapture, $round, $gameOver)
     {
         $this->roomCode = $roomCode;
         $this->playerHand = $playerHand;
         $this->opponentHand = $opponentHand;
         $this->table = $table;
         $this->deck = $deck;
+        $this->lastToCapture = $lastToCapture;
+        $this->currentPlayer = $currentPlayer;
+        $this->round = $round;
+        $this->gameOver = $gameOver;
     }
     /**
      * Get the channels the event should broadcast on.
@@ -49,6 +57,10 @@ class CardsDealt implements ShouldBroadcastNow
             'opponentHand' => $this->opponentHand,
             'table' => $this->table,
             'deck' => $this->deck,
+            'currentPlayer' => $this->currentPlayer,
+            'lastToCapture' => $this->lastToCapture,
+            'round' => $this->round,
+            'gameOver' => $this->gameOver,
         ];
     }
 }

@@ -24,8 +24,12 @@ class CardsCaptured implements ShouldBroadcastNow
     public $opponentHand;
     public $playerTaken;
     public $opponentTaken;
+    public $currentPlayer;
+    public $lastToCapture;
+    public $round;
+    public $gameOver;
 
-    public function __construct($roomCode, $playerId, $playerCaptured, $tableCaptured, $table, $playerHand, $opponentHand, $playerTaken, $opponentTaken)
+    public function __construct($roomCode, $playerId, $playerCaptured, $tableCaptured, $table, $playerHand, $opponentHand, $playerTaken, $opponentTaken, $currentPlayer, $lastToCapture, $round, $gameOver)
     {
         $this->roomCode = $roomCode;
         $this->playerId = $playerId;
@@ -36,6 +40,10 @@ class CardsCaptured implements ShouldBroadcastNow
         $this->opponentHand = $opponentHand;
         $this->playerTaken = $playerTaken;
         $this->opponentTaken = $opponentTaken;
+        $this->currentPlayer = $currentPlayer;
+        $this->lastToCapture = $lastToCapture;
+        $this->round = $round;
+        $this->gameOver = $gameOver;
     }
 
     /**
@@ -61,6 +69,10 @@ class CardsCaptured implements ShouldBroadcastNow
             'opponentHand' => $this->opponentHand,
             'playerTaken' => $this->playerTaken,
             'opponentTaken' => $this->opponentTaken,
+            'currentPlayer' => $this->currentPlayer,
+            'lastToCapture' => $this->lastToCapture,
+            'round' => $this->round,
+            'gameOver' => $this->gameOver,
         ];
     }
 }

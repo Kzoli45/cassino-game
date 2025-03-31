@@ -21,8 +21,12 @@ class CardPlaced implements ShouldBroadcastNow
     public $table;
     public $playerHand;
     public $opponentHand;
+    public $currentPlayer;
+    public $lastToCapture;
+    public $round;
+    public $gameOver;
 
-    public function __construct($roomCode, $card, $playerId, $table, $playerHand, $opponentHand)
+    public function __construct($roomCode, $card, $playerId, $table, $playerHand, $opponentHand, $currentPlayer, $lastToCapture, $round, $gameOver)
     {
         $this->roomCode = $roomCode;
         $this->card = $card;
@@ -30,6 +34,10 @@ class CardPlaced implements ShouldBroadcastNow
         $this->table = $table;
         $this->playerHand = $playerHand;
         $this->opponentHand = $opponentHand;
+        $this->currentPlayer = $currentPlayer;
+        $this->lastToCapture = $lastToCapture;
+        $this->round = $round;
+        $this->gameOver = $gameOver;
     }
 
 
@@ -53,6 +61,10 @@ class CardPlaced implements ShouldBroadcastNow
             'table' => $this->table,
             'playerHand' => $this->playerHand,
             'opponentHand' => $this->opponentHand,
+            'currentPlayer' => $this->currentPlayer,
+            'lastToCapture' => $this->lastToCapture,
+            'round' => $this->round,
+            'gameOver' => $this->gameOver,
         ];
     }
 }

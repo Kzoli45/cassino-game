@@ -33,6 +33,11 @@ const table = ref([]);
 const playerTakenCards = ref([]);
 const opponentTakenCards = ref([]);
 
+const currentPlayer = ref(null);
+const lastToCapture = ref(null);
+const round = ref(0);
+const gameOver = ref(0);
+
 const playerSelected = ref([]);
 const tableSelected = ref([]);
 
@@ -44,7 +49,7 @@ const startGame = async () => {
 
 window.Echo.channel('room.' + props.room.room_code)
     .listen('CardsDealt', async (e) => {
-        //console.log(e);
+        console.log(e);
         playerHand.value = [];
         opponentHand.value = [];
         table.value = [];
@@ -56,7 +61,12 @@ window.Echo.channel('room.' + props.room.room_code)
         table.value = e.table;
         cardDeck.value = e.deck;
 
-        playRoom.animateDealing(myHand.value, opponentHandHidden.value, table.value);
+        currentPlayer.value = e.currentPlayer;
+        lastToCapture.value = e.lastToCapture;
+        round.value = e.round;
+        gameOver.value = e.gameOver;
+
+        playRoom.animateDealing(myHand.value, opponentHandHidden.value, table.value, round.value);
     })
     .listen('CardPlaced', async (e) => {
         console.log(e);
@@ -71,6 +81,10 @@ window.Echo.channel('room.' + props.room.room_code)
                 playerHand.value = e.playerHand;
                 opponentHand.value = e.opponentHand;
                 table.value = e.table;
+                currentPlayer.value = e.currentPlayer;
+                lastToCapture.value = e.lastToCapture;
+                round.value = e.round;
+                gameOver.value = e.gameOver;
                 playerSelected.value = [];
                 tableSelected.value = [];
             }
@@ -78,7 +92,7 @@ window.Echo.channel('room.' + props.room.room_code)
         })
     })
     .listen('CardsCaptured', async(e) => {
-        //console.log(e);
+        console.log(e);
         const authUserId = page.props.auth.user.id;
 
         await nextTick();
@@ -92,11 +106,19 @@ window.Echo.channel('room.' + props.room.room_code)
                 table.value = e.table;
                 playerTakenCards.value = e.playerTaken == null ? playerTakenCards.value : e.playerTaken;
                 opponentTakenCards.value = e.opponentTaken == null ? opponentTakenCards.value : e.opponentTaken;
+                currentPlayer.value = e.currentPlayer;
+                lastToCapture.value = e.lastToCapture;
+                round.value = e.round;
+                gameOver.value = e.gameOver;
                 playerSelected.value = [];
                 tableSelected.value = [];
             }
         }, { immediate: true, flush: 'post'
         })
+    })
+    .listen('GameOver', (e) => {
+        console.log(e);
+        gameOver.value = 1;
     });
 
     const selectCard = (card) => {
@@ -113,7 +135,16 @@ window.Echo.channel('room.' + props.room.room_code)
     }
 </script>
 
+
 <template>
+    <template v-if="gameOver === 1">
+        <div class="bg-slate-600 flex flex-row items-center justify-center h-screen w-full my-4">
+            <div class="bg-slate-800 flex flex-col items-center justify-center gap-12 w-[90%] m-4 rounded-lg">
+                <h1>GameOver</h1>
+            </div>
+        </div>
+    </template>
+    <template v-else>
     <div class="bg-slate-600 flex flex-row items-center justify-center h-screen w-full my-4">
         <div class="bg-slate-800 flex flex-col items-center justify-center gap-12 w-[90%] m-4 rounded-lg">
             <div class="opponent-side flex flex-row items-center justify-center w-full">
@@ -142,10 +173,13 @@ window.Echo.channel('room.' + props.room.room_code)
             </div>
             <div class="table-area flex flex-row items-center justify-center w-full">
                 <div class="flex flex-row gap-4 items-center justify-between m-2 w-full">
-                    <div class="flex flex-row gap-2 md:gap-4 items-center justify-center text-xs md:text-lg">
-                        <h1 class="text-white ml-6 mr-0">Round 1</h1>
-                        <div>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);transform:"><path d="m12 16 5-6H7z"></path><path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"></path></svg>
+                    <div v-show="round > 0" class="flex flex-row gap-2 md:gap-4 items-center justify-center text-xs md:text-lg">
+                        <h1 class="text-white ml-6 mr-0"> Round: {{ round }}</h1>
+                        <div v-show="currentPlayer == $page.props.auth.user.id">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);transform:"><path d="m12 16 5-6H7z"></path><path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"></path></svg>
+                        </div>
+                        <div v-show="currentPlayer != $page.props.auth.user.id">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);transform:"><path d="M7 14h10l-5-6z"></path><path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"></path></svg>
                         </div>
                     </div>
                     <div class="flex flex-row flex-wrap gap-4 items-center justify-center flex-grow table-hand">
@@ -183,7 +217,7 @@ window.Echo.channel('room.' + props.room.room_code)
                     <div v-else-if ="cardDeck.length === 52 && $page.props.auth.user.id === room.player2_id">
                         <h1 class="text-white">Waiting for room owner to start the game..</h1>
                     </div>
-                    <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected)">
+                    <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected) && currentPlayer == $page.props.auth.user.id">
                         <PrimaryButton class="mb-6" @click="playRoom.playerMove(playerSelected, tableSelected, props.room.room_code)">
                             Play Card
                         </PrimaryButton>
@@ -221,4 +255,5 @@ window.Echo.channel('room.' + props.room.room_code)
             </div>
         </div>
     </div>
+    </template>
 </template>
