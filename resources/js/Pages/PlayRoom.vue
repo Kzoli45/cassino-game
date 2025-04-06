@@ -1,8 +1,6 @@
 <script setup>
 import { defineProps, ref, computed, nextTick, watch, onMounted } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import Dropdown from '@/Components/Dropdown.vue';
-import DropdownLink from '@/Components/DropdownLink.vue';
 import {Link} from '@inertiajs/vue3';
 import Card from '@/Components/Card.vue';
 import HiddenCard from '@/Components/HiddenCard.vue';
@@ -11,6 +9,8 @@ import { isCardRed } from '@/shared/deck';
 import { playRoom } from '@/shared/playroom';
 import { usePage } from '@inertiajs/vue3';
 import Modal from '@/Components/Modal.vue';
+import { messageOptions } from '@/shared/messages';
+import axios from 'axios';
 
 const props = defineProps({
     room: Object,
@@ -36,9 +36,25 @@ const result = ref({
 })
 
 const showResult = ref(true);
+const boxOpen = ref(false);
+
+const messages = messageOptions()
+const message = ref('')
+
+const toggleBox = () => {
+    boxOpen.value = !boxOpen.value;
+};
 
 const toggleResult = () => {
     showResult.value = !showResult.value;
+};
+
+const sendMessage = (message) => {
+    axios.post(`/api/send-message/${props.room.room_code}`, {
+        message: message
+    }).then(() => {
+        boxOpen.value = false;
+    });
 };
 
 const page = usePage();
@@ -198,6 +214,15 @@ window.Echo.channel('room.' + props.room.room_code)
             }
         }, { immediate: true, flush: 'post'
         })
+    })
+    .listen('MessageSent', (e) => {
+        console.log(e);
+        if (e.userId !== page.props.auth.user.id) {
+            message.value = e.message;
+            setTimeout(() => {
+                message.value = '';
+            }, 2000);
+        }
     });
 
     const selectCard = (card) => {
@@ -403,8 +428,9 @@ window.Echo.channel('room.' + props.room.room_code)
             <div class="table-area flex flex-row items-center justify-center w-full">
                 <div class="flex flex-row gap-4 items-center justify-between m-2 w-full">
                     <div class="flex flex-col justify-center items-center gap-6">
-                        <div class="gap-2 md:gap-4 items-center justify-center text-xs md:text-lg">
+                        <div class="gap-2 md:gap-4 flex flex-col items-center justify-center text-xs md:text-lg">
                             <h1 class="text-gray-400 mr-0">{{ $page.props.auth.user.id === props.room.player1.id ? props.room.player2.name : props.room.player1.name }}</h1>
+                            <span class="text-white text-l">{{ message }}</span>
                         </div>
                         <div v-show="round > 0" class="flex flex-row gap-2 md:gap-4 items-center justify-center text-xs md:text-lg">
                             <h1 class="text-white ml-6 mr-0"> Round: {{ round }}</h1>
@@ -417,20 +443,34 @@ window.Echo.channel('room.' + props.room.room_code)
                         </div>
                         <div class="flex flex-row gap-2 md:gap-4 items-center justify-center text-xs md:text-lg">
                             <h1 class="text-white ml-6 mr-0">{{ $page.props.auth.user.name }}</h1>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);"><path d="M20 2H4c-1.103 0-2 .897-2 2v12c0 1.103.897 2 2 2h3v3.766L13.277 18H20c1.103 0 2-.897 2-2V4c0-1.103-.897-2-2-2zm0 14h-7.277L9 18.234V16H4V4h16v12z"></path><circle cx="15" cy="10" r="2"></circle><circle cx="9" cy="10" r="2"></circle></svg>
+                            <div class="flex flex-col items-center justify-center">
+                                <svg class="cursor-pointer" @click="toggleBox" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);"><path d="M20 2H4c-1.103 0-2 .897-2 2v12c0 1.103.897 2 2 2h3v3.766L13.277 18H20c1.103 0 2-.897 2-2V4c0-1.103-.897-2-2-2zm0 14h-7.277L9 18.234V16H4V4h16v12z"></path><circle cx="15" cy="10" r="2"></circle><circle cx="9" cy="10" r="2"></circle></svg>
+                                <div v-show="boxOpen" class="bg-slate-600 rounded-md flex flex-row items-center justify-center gap-1 flex-grow z-10 absolute top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] p-8 max-w-[50%] text-md">	
+                                    <div class="flex flex-col items-center justify-center gap-4">
+                                        <div class="flex flex-row items-center justify-center gap-1 flex-grow flex-wrap">
+                                            <div class="bg-white p-2 rounded-md cursor-pointer" @click="sendMessage(message.message)" v-for="message in messages" :key="message.id">
+                                                {{ message.message }}
+                                            </div>
+                                        </div>
+                                        <PrimaryButton class="mb-2" @click="toggleBox"> 
+                                            Cancel
+                                        </PrimaryButton>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex flex-row flex-wrap gap-4 items-center justify-center flex-grow table-hand">
-                        <div v-show="table.length === 0">
-                            <Card class="placeholder opacity-0"/>
+                        <div class="flex flex-row flex-wrap gap-4 items-center justify-center flex-grow table-hand">
+                            <div v-show="table.length === 0">
+                                <Card class="placeholder opacity-0"/>
+                            </div>
+                            <Card v-for="card in table" :key="card.id" :card="card" :id="`table-card-${card.id}`" class="cursor-pointer" @click="selectCard(card)">
+                                <template #front>
+                                    <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
+                                    <span :class="{'text-red-600': isCardRed(card)}">{{ card.value }}</span>
+                                </template>
+                            </Card>
                         </div>
-                        <Card v-for="card in table" :key="card.id" :card="card" :id="`table-card-${card.id}`" class="cursor-pointer" @click="selectCard(card)">
-                            <template #front>
-                                <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
-                                <span :class="{'text-red-600': isCardRed(card)}">{{ card.value }}</span>
-                            </template>
-                        </Card>
-                    </div>
                     <div class="flex flex-row items-center justify-end ml-12 mr-8 md:mx-8" id="deck">
                         <template v-if="cardDeck.length === 0">
                             <HiddenCard class="opacity-0 absolute" id="deck-card"/>

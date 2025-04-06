@@ -6,6 +6,7 @@ use App\Events\GameOver;
 use App\Models\GameRoom;
 use App\Events\CardPlaced;
 use App\Events\CardsDealt;
+use App\Events\MessageSent;
 use App\Events\PlayerReady;
 use Illuminate\Http\Request;
 use App\Events\CardsCaptured;
@@ -29,6 +30,17 @@ class GameController extends Controller
 
     //     broadcast(new PlayerReady($room, Auth::user()));
     // }
+
+    public function sendMessage(Request $request, $roomCode)
+    {
+        $room = GameRoom::where('room_code', $roomCode)->firstOrFail();
+        $message = $request->input('message');
+        $userId = Auth::id();
+
+        broadcast(new MessageSent($message, $roomCode, $userId));
+
+        return response()->json(['message' => 'Message sent']);
+    }
 
     public function dealCards(Request $request, $roomCode)
     {
