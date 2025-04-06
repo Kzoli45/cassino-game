@@ -42,32 +42,31 @@ class GameController extends Controller
             Redis::set($room->room_code . '.last_tocapture', '');
             Redis::set($room->room_code . '.round', 1);
             Redis::set($room->room_code . '.game_over', false);
+            Redis::set($room->room_code . '.playerTables.' . $room->player1_id, 0);
+            Redis::set($room->room_code . '.playerTables.' . $room->player2_id, 0);
         } else {
-            // For subsequent rounds, start with last capturer or alternate
             $lastToCapture = Redis::get($room->room_code . '.last_tocapture');
             $currentPlayer = $lastToCapture ?: (Redis::get($room->room_code . '.current_player') == $room->player1_id
                 ? $room->player2_id
                 : $room->player1_id);
             Redis::set($room->room_code . '.current_player', $currentPlayer);
 
-            // Increment round
             Redis::incr($room->room_code . '.round');
         }
 
         $deck = json_decode(Redis::get($room->room_code . '.deck'), true);
 
-        if (!$deck || count($deck) < 6) {
-            Redis::set($room->room_code . '.game_over', true);
-            broadcast(new GameOver($room->room_code));
-            return response()->json(['message' => 'Game over'], 200);
-        }
+        // if (!$deck || count($deck) < 6) {
+        //     Redis::set($room->room_code . '.game_over', true);
+        //     broadcast(new GameOver($room->room_code, json_decode(Redis::get($room->room_code . '.table'), true), $lastToCapture));
+        //     return response()->json(['message' => 'Game over'], 200);
+        // }
 
         $playerHand = array_splice($deck, 0, 3);
         $opponentHand = array_splice($deck, 0, 3);
         if ($isFirstRound) {
-            $table = array_splice($deck, 0, 4); // Initial 4 cards to table
+            $table = array_splice($deck, 0, 4);
         } else {
-            // Keep existing table cards
             $table = json_decode(Redis::get($room->room_code . '.table'), true) ?? [];
         }
 
@@ -164,7 +163,6 @@ class GameController extends Controller
         $table = array_filter($table, fn($c) => !in_array($c['id'], array_column($tableCaptured, 'id')));
         Redis::set($room->room_code . '.table', json_encode(array_values($table)));
 
-        // Remove captured cards from player's hand
         $playerHand = json_decode(Redis::get($room->room_code . '.' . $playerHandKey), true) ?? [];
         $playerHand = array_filter($playerHand, fn($c) => !in_array($c['id'], array_column($playerCaptured, 'id')));
         Redis::set($room->room_code . '.' . $playerHandKey, json_encode(array_values($playerHand)));
@@ -197,6 +195,10 @@ class GameController extends Controller
         $playerTaken = json_decode(Redis::get($room->room_code . '.playerTaken.' . $room->player1_id), true);
         $opponentTaken = json_decode(Redis::get($room->room_code . '.opponentTaken.' . $room->player2_id), true);
 
+        if (empty($table)) {
+            Redis::incr($room->room_code . '.playerTables.' . $playerId);
+        }
+
         broadcast(new CardsCaptured($room->room_code, $playerId, $playerCaptured, $tableCaptured, $table, $playerHand, $opponentHand, $playerTaken, $opponentTaken, $currentPlayer, $lastToCapture, $round, $gameOver));
 
         $this->checkForNewDeal($room);
@@ -212,9 +214,85 @@ class GameController extends Controller
         if (empty($player1Hand) && empty($player2Hand)) {
             $deck = json_decode(Redis::get($room->room_code . '.deck'), true);
             if (empty($deck)) {
+                $lastToCapture = Redis::get($room->room_code . '.last_tocapture');
+                if ($lastToCapture) {
+                    $table = json_decode(Redis::get($room->room_code . '.table'), true) ?? [];
+                    if (!empty($table)) {
+                        $takenKey = $lastToCapture == $room->player1_id
+                            ? 'playerTaken.' . $room->player1_id
+                            : 'opponentTaken.' . $room->player2_id;
+
+                        $playerTaken = json_decode(Redis::get($room->room_code . '.' . $takenKey), true) ?? [];
+                        $playerTaken = array_merge($playerTaken, $table);
+                        Redis::set($room->room_code . '.' . $takenKey, json_encode(array_values($playerTaken)));
+
+                        Redis::set($room->room_code . '.table', json_encode([]));
+                    }
+                }
                 sleep(2);
+                $playerTaken = json_decode(Redis::get($room->room_code . '.playerTaken.' . $room->player1_id), true) ?? [];
+                $opponentTaken = json_decode(Redis::get($room->room_code . '.opponentTaken.' . $room->player2_id), true) ?? [];
+
+                $playerTables = (int)Redis::get($room->room_code . '.playerTables.' . $room->player1_id) ?? 0;
+                $opponentTables = (int)Redis::get($room->room_code . '.playerTables.' . $room->player2_id) ?? 0;
+
+                $playerTotal = 0;
+                $opponentTotal = 0;
+                $winner = 0;
+
+                $playerCards = count($playerTaken);
+                $opponentCards = count($opponentTaken);
+
+                if ($playerCards > $opponentCards) {
+                    $playerTotal += 3;
+                } else {
+                    $opponentTotal += 3;
+                }
+
+                $playerSpades = count(array_filter($playerTaken, fn($card) => $card['suit'] == '♠'));
+                $opponentSpades = count(array_filter($opponentTaken, fn($card) => $card['suit'] == '♠'));
+
+                if ($playerSpades > $opponentSpades) {
+                    $playerTotal += 2;
+                } else {
+                    $opponentTotal += 2;
+                }
+
+                $tenOfDiamondsPlayer = count(array_filter($playerTaken, fn($card) => $card['value'] == '10' && $card['suit'] == '♦'));
+                $tenOfDiamondsOpponent = count(array_filter($opponentTaken, fn($card) => $card['value'] == '10' && $card['suit'] == '♦'));
+
+                if ($tenOfDiamondsPlayer > $tenOfDiamondsOpponent) {
+                    $playerTotal += 2;
+                } else {
+                    $opponentTotal += 2;
+                }
+
+                $twoOfSpadesPlayer = count(array_filter($playerTaken, fn($card) => $card['value'] == '2' && $card['suit'] == '♠'));
+                $twoOfSpadesOpponent = count(array_filter($opponentTaken, fn($card) => $card['value'] == '2' && $card['suit'] == '♠'));
+
+                if ($twoOfSpadesPlayer > $twoOfSpadesOpponent) {
+                    $playerTotal += 1;
+                } else {
+                    $opponentTotal += 1;
+                }
+
+                $playerAces = count(array_filter($playerTaken, fn($card) => $card['value'] == 'A'));
+                $opponentAces = count(array_filter($opponentTaken, fn($card) => $card['value'] == 'A'));
+
+                $playerTotal += $playerAces + $playerTables;
+                $opponentTotal += $opponentAces + $opponentTables;
+
+                if ($playerTotal > $opponentTotal) {
+                    $winner = $room->player1_id;
+                } elseif ($opponentTotal > $playerTotal) {
+                    $winner = $room->player2_id;
+                } else {
+                    $winner = 0;
+                }
+
                 Redis::set($room->room_code . '.game_over', true);
-                broadcast(new GameOver($room->room_code));
+
+                broadcast(new GameOver($room->room_code, $table, $lastToCapture, $playerCards, $opponentCards, $playerSpades, $opponentSpades, $tenOfDiamondsPlayer, $tenOfDiamondsOpponent, $twoOfSpadesPlayer, $twoOfSpadesOpponent, $playerAces, $opponentAces, $playerTables, $opponentTables, $playerTotal, $opponentTotal, $winner));
             } else {
                 sleep(3);
                 $this->dealCards(new Request([], ['isFirstRound' => false]), $room->room_code);

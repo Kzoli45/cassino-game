@@ -252,8 +252,8 @@ export const handStore = reactive({
             const tableSelected = handStore.tableSelected;
     
             const cardsToAnimate = [
-                ...playerSelected.map(card => `#player-card-${card.id}`),
-                ...tableSelected.map(card => `#table-card-${card.id}`)
+                ...tableSelected.map(card => `#table-card-${card.id}`),
+                ...playerSelected.map(card => `#player-card-${card.id}`)
             ];
     
             const centerX = window.innerWidth / 2;

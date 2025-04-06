@@ -9,6 +9,7 @@ export const playRoom = reactive({
     placing: false,
     capturing: false,
     wasIllegalMove: false,
+    clearing: false,
 
     dealCards(numCards) {
         let cards = [];
@@ -27,13 +28,15 @@ export const playRoom = reactive({
     async animateDealing(playerHand, opponentHand, table, round) {
         await nextTick();
 
+        playRoom.dealing = true;
+
         const deckCards = document.querySelectorAll("#deck .card");
         const lastCard = deckCards[deckCards.length - 1];
-        if (!lastCard) return;
+        if (!lastCard) {
+            lastCard = document.getElementById("deck-card");
+        }
 
         const deckRect = lastCard.getBoundingClientRect();
-
-        playRoom.dealing = true;
 
         await nextTick();
 
@@ -48,7 +51,7 @@ export const playRoom = reactive({
                 dealingOrder.push({ selector: `#player-card-${playerHand[i].id}`, shouldFlip: true });
             }
             if (opponentHand[i]) {
-                dealingOrder.push({ selector: `#opponent-card-${opponentHand[i].id}`, shouldFlip: false });
+                dealingOrder.push({ selector: `#opponent-card-${opponentHand[i].id}`, shouldFlip: round < 8 ? false : true });
             }
         }
 
@@ -201,7 +204,7 @@ export const playRoom = reactive({
         }
     },
 
-    async placeCardAnimation(card, hand, table, shouldFlip) {
+    async placeCardAnimation(card, hand, table, shouldFlip, round) {
         await nextTick();
 
         playRoom.placing = true;
@@ -234,7 +237,7 @@ export const playRoom = reactive({
                 const deltaX = targetX - (cardRect.left - tableRect.left);
                 const deltaY = targetY - (cardRect.top - tableRect.top);
 
-                gsap.set(cardInner, { rotateY: shouldFlip? -180 : 0, duration: 0.6, delay: 0.1 });
+                gsap.set(cardInner, { rotateY: shouldFlip && round < 8? -180 : 0, duration: 0.6, delay: 0.1 });
 
                 gsap.to(cardElement, {
                     x: deltaX,
@@ -250,21 +253,21 @@ export const playRoom = reactive({
             }
     },
 
-    async captureCardsAnimation(playerSelected, tableSelected, hand, shouldFlip) {
+    async captureCardsAnimation(playerSelected, tableSelected, hand, shouldFlip, round) {
         const playerCards = playerSelected;
         const tableCards = tableSelected;
 
         playRoom.capturing = true
 
         const cardsToAnimate = [
-            ...playerCards.map(card => `#${hand}-${card.id}`),
-            ...tableCards.map(card => `#table-card-${card.id}`)
+            ...tableCards.map(card => `#table-card-${card.id}`),
+            ...playerCards.map(card => `#${hand}-${card.id}`)
         ]
 
         const centerX = window.innerWidth / 2;
         const centerY = window.innerHeight / 2;
     
-        const templateCard = document.querySelector('#template-card');
+        const templateCard = hand === 'player-card' ? document.querySelector('#template-card') : document.querySelector('#opponent-template-card');
         const templateRect = templateCard.getBoundingClientRect();
         const templateCenterX = templateRect.left + templateRect.width / 2;
         const templateCenterY = templateRect.top + templateRect.height / 2;
@@ -303,7 +306,7 @@ export const playRoom = reactive({
 
             if (selector.includes(hand)) {
                 const inner = cardElement.querySelector('.card-inner');
-                gsap.set(inner, { rotateY: shouldFlip ? -180 : 0, duration: 0.2 });
+                gsap.set(inner, { rotateY: shouldFlip && round < 8 ? -180 : 0, duration: 0.2 });
             }
 
             gsap.set(cardElement, { zIndex: 100, pointerEvents: 'none' });
@@ -343,7 +346,97 @@ export const playRoom = reactive({
                 });
             }
         });
+    },
 
+    async cleanUpTable(table, lastToCapture, userId) {
+        const cards = table;
+        if (cards.length === 0) return;
+
+        playRoom.clearing = true;
+
+        const cardsToAnimate = [
+            ...cards.map(card => `#table-card-${card.id}`)
+        ]
+
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+
+        const templateCard = lastToCapture == userId ? document.querySelector('#template-card') : document.querySelector('#opponent-template-card');
+
+        const templateRect = templateCard.getBoundingClientRect();
+        const templateCenterX = templateRect.left + templateRect.width / 2;
+        const templateCenterY = templateRect.top + templateRect.height / 2;
+        const templateX = templateCenterX - centerX;
+        const templateY = templateCenterY - centerY;
+
+        const overlay = playRoom.createOverlay();
+        document.body.appendChild(overlay);
+
+        const timeline = gsap.timeline({
+            onStart: () => {
+                gsap.set(overlay, { opacity: 1, duration: 0.3 });
+            },
+            onComplete: () => {
+                gsap.to(overlay, { opacity: 0, duration: 0.3, onComplete: () => {
+                    overlay.remove();
+                    nextTick(() => {
+                        playRoom.clearing = false;
+                    })
+                }});
+            }
+        })
+
+        cardsToAnimate.forEach(selector => {
+            //console.log(selector)
+            const cardElement = document.querySelector(selector);
+            if (!cardElement) return;
+
+            const cardRect = cardElement.getBoundingClientRect();
+            const currentX = cardRect.left + cardRect.width / 2;
+            const currentY = cardRect.top + cardRect.height / 2;
+    
+            const deltaXToCenter = centerX - currentX;
+            const deltaYToCenter = centerY - currentY;
+
+            const inner = cardElement.querySelector('.card-inner');
+            gsap.set(inner, { rotateY: 0, duration: 0.2 });
+            gsap.set(cardElement, { zIndex: 100, pointerEvents: 'none' });
+
+            timeline.to(cardElement, {
+                x: `+=${deltaXToCenter}`,
+                y: `+=${deltaYToCenter}`,
+                scale: 1.5,
+                duration: 0.5,
+                ease: "power2.inOut"
+            });
+        })
+
+        timeline.to(cardsToAnimate.map(selector => document.querySelector(selector)), {
+            x: `+=${templateX}`,
+            y: `+=${templateY}`,
+            scale: 1,
+            duration: 0.7,
+            ease: "power2.inOut",
+            onStart: () => {
+                cardsToAnimate.forEach(selector => {
+                    const cardElement = document.querySelector(selector);
+                    //console.log(cardElement)
+                    const inner = cardElement.querySelector('.card-inner');
+                    if (inner) {
+                        gsap.to(inner, { rotateY: 180, duration: 0.2, ease: "power1.inOut" });
+                    }
+                }
+            )},
+
+            onComplete: () => {
+                cardsToAnimate.forEach(selector => {
+                    const cardElement = document.querySelector(selector);
+                    if (cardElement) {
+                        gsap.set(cardElement, { zIndex: 0 });
+                    }
+                });
+            }
+        });
     },
 
     createOverlay() {
