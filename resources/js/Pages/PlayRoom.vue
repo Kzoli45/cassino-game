@@ -1,5 +1,5 @@
 <script setup>
-import { defineProps, ref, computed, nextTick, watch, onMounted } from 'vue';
+import { defineProps, ref, computed, nextTick, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import {Link} from '@inertiajs/vue3';
 import Card from '@/Components/Card.vue';

@@ -42,7 +42,7 @@ export const messageOptions = () => {
         },
         {
             id: 11,
-            message: "❗",
+            message: "❌",
         },
         {
             id: 12,
