@@ -247,7 +247,7 @@ window.Echo.channel('room.' + props.room.room_code)
                 <PrimaryButton @click="toggleResult">
                     Result
                 </PrimaryButton>
-                <PrimaryButton>
+                <PrimaryButton v-show="$page.props.auth.user.id === props.room.player1_id">
                     Play Again
                 </PrimaryButton>
                 <Link href="/">

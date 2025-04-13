@@ -30,6 +30,11 @@ class RoomController extends Controller
             $roomCode = Str::random(8);
         } while (GameRoom::where('room_code', $roomCode)->exists());
 
+        GameRoom::where(function ($query) {
+            $query->where('player1_id', Auth::id())
+                ->orWhere('player2_id', Auth::id());
+        })->delete();
+
         $room = GameRoom::create([
             'room_code' => $roomCode,
             'player1_id' => Auth::id(),
@@ -62,13 +67,16 @@ class RoomController extends Controller
             'player2_id' => Auth::id(),
         ]);
 
+        GameRoom::where(function ($query) {
+            $query->where('player1_id', Auth::id())
+                ->orWhere('player2_id', Auth::id());
+        })->where('room_code', '!=', $room->room_code)->delete();
+
         //Redis::set('room.' . $room->room_code . '.player2-ready', 0);
 
         broadcast(new PlayerJoinedRoom($room));
 
         return redirect()->route('room.show', $room->room_code);
-
-        sleep(3);
     }
 
     public function showRoom($roomCode)
@@ -93,7 +101,7 @@ class RoomController extends Controller
         return response()->json(['message' => 'Deck stored successfully']);
     }
 
-    public function playRoom(Request $request, $roomCode)
+    public function playRoom($roomCode)
     {
         $room = GameRoom::where('room_code', $roomCode)
             ->with('player1', 'player2')

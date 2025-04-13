@@ -17,15 +17,8 @@ window.Echo.channel('room.' + props.room.room_code)
 
 watch(() => room.value, async(newRoom) => {
         if (newRoom.player1 && newRoom.player2) {
-
-            if (!localStorage.getItem(`deck-${newRoom.room_code}`)) {
             let deck = JSON.stringify(playRoom.deck);
-
             await axios.post(`/api/store-deck/${newRoom.room_code}`, { deck });
-
-            localStorage.setItem(`deck-${newRoom.room_code}`, 'true');
-        }
-
             setTimeout(() => {
                 router.visit(`/rooms/${newRoom.room_code}/play`);
             }, 2000);
