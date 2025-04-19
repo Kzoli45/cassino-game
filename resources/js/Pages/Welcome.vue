@@ -51,9 +51,9 @@ const toggleRules = () => {
                                     Play vs Friend
                                 </PrimaryButton>
                             </Link>
-                            <PrimaryButton>
+                            <!-- <PrimaryButton>
                                 Game Tutorial
-                            </PrimaryButton>
+                            </PrimaryButton> -->
                             <PrimaryButton @click="toggleRules">
                                 Game Rules
                             </PrimaryButton>

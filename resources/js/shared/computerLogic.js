@@ -3,6 +3,7 @@ import { handStore } from './playerLogic';
 import { getCardValue } from './deck';
 import gsap from 'gsap';
 import { gameStore } from './gameCycle';
+import { playRoom } from './playroom';
 
 export const computerStore = reactive({
     capturing: false,
@@ -127,19 +128,7 @@ export const computerStore = reactive({
     const templateX = templateCenterX - centerX;
     const templateY = templateCenterY - centerY;
 
-    const overlay = document.createElement('div');
-    overlay.id = 'dim-overlay';
-    Object.assign(overlay.style, {
-        position: 'fixed',
-        top: '0',
-        left: '0',
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        zIndex: '50',
-        pointerEvents: 'auto',
-        opacity: '0'
-    });
+    const overlay = playRoom.createOverlay();
     document.body.appendChild(overlay);
 
     const timeline = gsap.timeline({

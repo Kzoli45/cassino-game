@@ -11,6 +11,7 @@ import { usePage } from '@inertiajs/vue3';
 import Modal from '@/Components/Modal.vue';
 import { messageOptions } from '@/shared/messages';
 import axios from 'axios';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 
 const props = defineProps({
     room: Object,
@@ -216,7 +217,7 @@ window.Echo.channel('room.' + props.room.room_code)
         })
     })
     .listen('MessageSent', (e) => {
-        console.log(e);
+        //console.log(e);
         if (e.userId !== page.props.auth.user.id) {
             message.value = e.message;
             setTimeout(() => {
@@ -247,9 +248,9 @@ window.Echo.channel('room.' + props.room.room_code)
                 <PrimaryButton @click="toggleResult">
                     Result
                 </PrimaryButton>
-                <PrimaryButton v-show="$page.props.auth.user.id === props.room.player1_id">
+                <!-- <PrimaryButton v-show="$page.props.auth.user.id === props.room.player1_id">
                     Play Again
-                </PrimaryButton>
+                </PrimaryButton> -->
                 <Link href="/">
                     <PrimaryButton>
                         Main Menu
@@ -452,9 +453,9 @@ window.Echo.channel('room.' + props.room.room_code)
                                                 {{ message.message }}
                                             </div>
                                         </div>
-                                        <PrimaryButton class="mb-2" @click="toggleBox"> 
+                                        <SecondaryButton class="mb-2" @click="toggleBox"> 
                                             Cancel
-                                        </PrimaryButton>
+                                        </SecondaryButton>
                                     </div>
                                 </div>
                             </div>
