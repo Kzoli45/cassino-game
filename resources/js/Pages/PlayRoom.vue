@@ -36,38 +36,6 @@ const result = ref({
     winner: 0,
 })
 
-const showResult = ref(true);
-const boxOpen = ref(false);
-
-const messages = messageOptions()
-const message = ref('')
-
-const toggleBox = () => {
-    boxOpen.value = !boxOpen.value;
-};
-
-const toggleResult = () => {
-    showResult.value = !showResult.value;
-};
-
-const sendMessage = (message) => {
-    axios.post(`/api/send-message/${props.room.room_code}`, {
-        message: message
-    }).then(() => {
-        boxOpen.value = false;
-    });
-};
-
-const page = usePage();
-
-const isPlayer1 = computed(() => props.player.id === props.room.player1_id);
-
-const myHand = computed(() => (isPlayer1.value ? playerHand.value : opponentHand.value));
-const opponentHandHidden = computed(() => (isPlayer1.value ? opponentHand.value : playerHand.value));
-
-const myTaken = computed(() => (isPlayer1.value ? playerTakenCards.value : opponentTakenCards.value));
-const opponentTaken = computed(() => (isPlayer1.value ? opponentTakenCards.value : playerTakenCards.value));
-
 const myScore = computed(() => (isPlayer1.value ? {
     cards: result.value.playerCards,
     spades: result.value.playerSpades,
@@ -96,16 +64,35 @@ const opponentScore = computed(() => (isPlayer1.value ? {
     total: result.value.playerTotal,
 }));
 
-const cardDeck = ref(props.deck);
-const playerHand = ref([]);
-const opponentHand = ref([]);
-const table = ref([]);
-const playerTakenCards = ref([]);
-const opponentTakenCards = ref([]);
+const gameVariables = ref({
+    playerHand: [],
+    opponentHand: [],
+    table: [],
+    playerTakenCards: [],
+    opponentTakenCards: [],
+    currentPlayer: null,
+    lastToCapture: null,
+    round: 0,
+})
 
-const currentPlayer = ref(null);
-const lastToCapture = ref(null);
-const round = ref(0);
+const showResult = ref(false);
+const boxOpen = ref(false);
+
+const messages = messageOptions()
+const message = ref('')
+
+const page = usePage();
+const authUserId = page.props.auth.user.id;
+
+const isPlayer1 = computed(() => props.player.id === props.room.player1_id);
+
+const myHand = computed(() => (isPlayer1.value ? gameVariables.value.playerHand : gameVariables.value.opponentHand));
+const opponentHandHidden = computed(() => (isPlayer1.value ? gameVariables.value.opponentHand : gameVariables.value.playerHand));
+
+const myTaken = computed(() => (isPlayer1.value ? gameVariables.value.playerTakenCards : gameVariables.value.opponentTakenCards));
+const opponentTaken = computed(() => (isPlayer1.value ? gameVariables.value.opponentTakenCards : gameVariables.value.playerTakenCards));
+
+const cardDeck = ref(props.deck);
 const gameOver = ref(0);
 
 const playerSelected = ref([]);
@@ -117,43 +104,74 @@ const startGame = async () => {
     });
 };
 
+const updateGameState = (objA, objB) => {
+    for (const key in objB) {
+        //console.log(key, objB[key]);
+        if (key in objA) {
+            objA[key] = objB[key];
+        }
+    }
+}
+
+const selectCard = (card) => {
+    let cardElement = document.getElementById(`player-card-${card.id}`);
+    if (!cardElement) {
+            cardElement = document.getElementById(`table-card-${card.id}`);
+    }
+
+    if (cardElement) {
+        playRoom.selectAnimation(cardElement, playerSelected, tableSelected, myHand.value, gameVariables.value.table , () => {
+            //console.log(playerSelected.value, tableSelected.value);
+        });
+    }
+}
+
+const toggleBox = () => {
+    boxOpen.value = !boxOpen.value;
+};
+
+const toggleResult = () => {
+    showResult.value = !showResult.value;
+};
+
+const sendMessage = (message) => {
+    axios.post(`/api/send-message/${props.room.room_code}`, {
+        message: message
+    }).then(() => {
+        boxOpen.value = false;
+    });
+};
+
 window.Echo.channel('room.' + props.room.room_code)
     .listen('CardsDealt', async (e) => {
         //console.log(e);
-        playerHand.value = [];
-        opponentHand.value = [];
-        table.value = [];
+        gameVariables.value.playerHand = []
+        gameVariables.value.opponentHand = []
+        gameVariables.value.table = []
 
         await nextTick();
 
-        playerHand.value = e.playerHand;
-        opponentHand.value = e.opponentHand;
-        table.value = e.table;
-        cardDeck.value = e.deck;
+        updateGameState(gameVariables.value, e);
+        //console.log(gameVariables.value);
 
-        currentPlayer.value = e.currentPlayer;
-        lastToCapture.value = e.lastToCapture;
-        round.value = e.round;
+        cardDeck.value = e.deck;
         gameOver.value = e.gameOver;
 
-        await playRoom.animateDealing(myHand.value, opponentHandHidden.value, table.value, round.value);
+        await playRoom.animateDealing(myHand.value, opponentHandHidden.value, gameVariables.value.table, gameVariables.value.round);
     })
     .listen('CardPlaced', async (e) => {
         //console.log(e);
-        const authUserId = page.props.auth.user.id;
-
         await nextTick();
 
-        await playRoom.placeCardAnimation(e.card, e.playerId === authUserId ? 'player-card' : 'opponent-card', table.value, e.playerId === authUserId? false : true, round.value);
+        await playRoom.placeCardAnimation(e.card, e.playerId === authUserId ? 'player-card' : 'opponent-card', gameVariables.value.table, e.playerId === authUserId? false : true, gameVariables.value.round);
 
         watch(() => playRoom.placing, (newValue) => {
             if (!newValue) {
-                playerHand.value = e.playerHand;
-                opponentHand.value = e.opponentHand;
-                table.value = e.table;
-                currentPlayer.value = e.currentPlayer;
-                lastToCapture.value = e.lastToCapture;
-                round.value = e.round;
+                
+                updateGameState(gameVariables.value, e);
+                // console.log(e)
+                // console.log(gameVariables.value);
+
                 gameOver.value = e.gameOver;
                 playerSelected.value = [];
                 tableSelected.value = [];
@@ -163,22 +181,21 @@ window.Echo.channel('room.' + props.room.room_code)
     })
     .listen('CardsCaptured', async(e) => {
         //console.log(e);
-        const authUserId = page.props.auth.user.id;
-
         await nextTick();
 
-        await playRoom.captureCardsAnimation(e.playerCaptured, e.tableCaptured, e.playerId === authUserId ? 'player-card' : 'opponent-card', e.playerId === authUserId? false : true, round.value);
+        await playRoom.captureCardsAnimation(e.playerCaptured, e.tableCaptured, e.playerId === authUserId ? 'player-card' : 'opponent-card', e.playerId === authUserId? false : true, gameVariables.value.round);
 
         watch(() => playRoom.capturing, (newValue) => {
             if (!newValue) {
-                playerHand.value = e.playerHand;
-                opponentHand.value = e.opponentHand;
-                table.value = e.table;
-                playerTakenCards.value = e.playerTaken == null ? playerTakenCards.value : e.playerTaken;
-                opponentTakenCards.value = e.opponentTaken == null ? opponentTakenCards.value : e.opponentTaken;
-                currentPlayer.value = e.currentPlayer;
-                lastToCapture.value = e.lastToCapture;
-                round.value = e.round;
+                
+                updateGameState(gameVariables.value, e);
+
+                gameVariables.value.playerTakenCards = e.playerTaken == null ? gameVariables.value.playerTakenCards : e.playerTaken;
+                gameVariables.value.opponentTakenCards = e.opponentTaken == null ? gameVariables.value.opponentTakenCards : e.opponentTaken;
+
+                // console.log(gameVariables.value.playerTakenCards, gameVariables.value.opponentTakenCards);
+                // console.log(e)
+
                 gameOver.value = e.gameOver;
                 playerSelected.value = [];
                 tableSelected.value = [];
@@ -188,29 +205,22 @@ window.Echo.channel('room.' + props.room.room_code)
     })
     .listen('GameOver', async (e) => {
         //console.log(e);
-        const authUserId = page.props.auth.user.id;
-
         await nextTick();
 
         await playRoom.cleanUpTable(e.table, e.lastToCapture, authUserId)
 
-        result.value.playerCards = e.playerCards;
-        result.value.opponentCards = e.opponentCards;
-        result.value.playerSpades = e.playerSpades;
-        result.value.opponentSpades = e.opponentSpades;
+        updateGameState(result.value, e);
+        // console.log(e)
+        // console.log(result.value);
+
         result.value.tenOfDiamonds = e.tenOfDiamondsPlayer > e.tenOfDiamondsOpponent ? props.room.player1_id : props.room.player2_id;
         result.value.twoOfSpades = e.twoOfSpadesPlayer > e.twoOfSpadesOpponent ? props.room.player1_id : props.room.player2_id;
-        result.value.playerAces = e.playerAces;
-        result.value.opponentAces = e.opponentAces;
-        result.value.playerTables = e.playerTables;
-        result.value.opponentTables = e.opponentTables;
-        result.value.playerTotal = e.playerTotal;
-        result.value.opponentTotal = e.opponentTotal;
-        result.value.winner = e.winner;
 
-        watch(() => playRoom.clearing, (newValue) => {
+        watch(() => playRoom.clearing, async (newValue) => {
             if (!newValue) {
                 gameOver.value = 1;
+                await nextTick();
+                toggleResult();
                 //console.log(result.value)
             }
         }, { immediate: true, flush: 'post'
@@ -225,19 +235,6 @@ window.Echo.channel('room.' + props.room.room_code)
             }, 2000);
         }
     });
-
-    const selectCard = (card) => {
-        let cardElement = document.getElementById(`player-card-${card.id}`);
-        if (!cardElement) {
-            cardElement = document.getElementById(`table-card-${card.id}`);
-        }
-
-        if (cardElement) {
-            playRoom.selectAnimation(cardElement, playerSelected, tableSelected, myHand.value, table.value , () => {
-                //console.log(playerSelected.value, tableSelected.value);
-            });
-        }
-    }
 </script>
 
 
@@ -295,7 +292,7 @@ window.Echo.channel('room.' + props.room.room_code)
                                     </td>
                                     <td class="px-6 py-4 text-center">
                                         <p v-show="myScore.cards !== opponentScore.cards">3</p>
-                                        <p v-show="myScore.cards === opponentScore.cards">0</p>
+                                        <p v-show="myScore.cards === opponentScore.cards">1</p>
                                     </td>
                                 </tr>
                                 <tr class="bg-white border-b dark:bg-slate-800 dark:border-gray-700 border-gray-200">
@@ -351,7 +348,7 @@ window.Echo.channel('room.' + props.room.room_code)
                                         <p v-show="result.twoOfSpades != $page.props.auth.user.id" class="text-green-500">-</p>
                                     </td>
                                     <td class="px-6 py-4 text-center">
-                                        2
+                                        1
                                     </td>
                                 </tr>
                                 <tr class="bg-white dark:bg-slate-800">
@@ -407,7 +404,7 @@ window.Echo.channel('room.' + props.room.room_code)
                     <div v-show="opponentHandHidden.length === 0">
                         <HiddenCard class="opacity-0"/>
                     </div>
-                        <template v-if="round < 8">
+                        <template v-if="gameVariables.round < 8">
                             <HiddenCard v-for="card in opponentHandHidden" :key="card.id" :card="card" :id="`opponent-card-${card.id}`">
                                 <template #back>
                                     <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
@@ -433,12 +430,12 @@ window.Echo.channel('room.' + props.room.room_code)
                             <h1 class="text-gray-400 mr-0">{{ $page.props.auth.user.id === props.room.player1.id ? props.room.player2.name : props.room.player1.name }}</h1>
                             <span class="text-white text-l">{{ message }}</span>
                         </div>
-                        <div v-show="round > 0" class="flex flex-row gap-2 md:gap-4 items-center justify-center text-xs md:text-lg">
-                            <h1 class="text-white ml-6 mr-0"> Round: {{ round }}</h1>
-                            <div v-show="currentPlayer == $page.props.auth.user.id">
+                        <div v-show="gameVariables.round > 0" class="flex flex-row gap-2 md:gap-4 items-center justify-center text-xs md:text-lg">
+                            <h1 class="text-white ml-6 mr-0"> Round: {{ gameVariables.round }}</h1>
+                            <div v-show="gameVariables.currentPlayer == $page.props.auth.user.id">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);transform:"><path d="m12 16 5-6H7z"></path><path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"></path></svg>
                             </div>
-                            <div v-show="currentPlayer != $page.props.auth.user.id">
+                            <div v-show="gameVariables.currentPlayer != $page.props.auth.user.id">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: rgba(255, 255, 255, 1);transform:"><path d="M7 14h10l-5-6z"></path><path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"></path></svg>
                             </div>
                         </div>
@@ -462,10 +459,10 @@ window.Echo.channel('room.' + props.room.room_code)
                         </div>
                     </div>
                         <div class="flex flex-row flex-wrap gap-4 items-center justify-center flex-grow table-hand">
-                            <div v-show="table.length === 0">
+                            <div v-show="gameVariables.table.length === 0">
                                 <Card class="placeholder opacity-0"/>
                             </div>
-                            <Card v-for="card in table" :key="card.id" :card="card" :id="`table-card-${card.id}`" class="cursor-pointer" @click="selectCard(card)">
+                            <Card v-for="card in gameVariables.table" :key="card.id" :card="card" :id="`table-card-${card.id}`" class="cursor-pointer" @click="selectCard(card)">
                                 <template #front>
                                     <span :class="{'text-red-600': isCardRed(card)}">{{ card.suit }}</span>
                                     <span :class="{'text-red-600': isCardRed(card)}">{{ card.value }}</span>
@@ -501,7 +498,7 @@ window.Echo.channel('room.' + props.room.room_code)
                     <div v-else-if ="cardDeck.length === 52 && $page.props.auth.user.id === room.player2_id">
                         <h1 class="text-white">Waiting for room owner to start the game..</h1>
                     </div>
-                    <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected) && currentPlayer == $page.props.auth.user.id">
+                    <div v-else-if="playRoom.isLogicalMove(playerSelected, tableSelected) && gameVariables.currentPlayer == $page.props.auth.user.id">
                         <PrimaryButton class="mb-6" @click="playRoom.playerMove(playerSelected, tableSelected, props.room.room_code)">
                             Play Card
                         </PrimaryButton>

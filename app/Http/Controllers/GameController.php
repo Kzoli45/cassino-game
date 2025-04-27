@@ -257,8 +257,11 @@ class GameController extends Controller
 
                 if ($playerCards > $opponentCards) {
                     $playerTotal += 3;
-                } else {
+                } else if ($opponentCards > $playerCards) {
                     $opponentTotal += 3;
+                } else {
+                    $playerTotal += 1;
+                    $opponentTotal += 1;
                 }
 
                 $playerSpades = count(array_filter($playerTaken, fn($card) => $card['suit'] == '♠'));
