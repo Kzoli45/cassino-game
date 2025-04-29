@@ -36,34 +36,6 @@ const result = ref({
     winner: 0,
 })
 
-const myScore = computed(() => (isPlayer1.value ? {
-    cards: result.value.playerCards,
-    spades: result.value.playerSpades,
-    aces: result.value.playerAces,
-    tables: result.value.playerTables,
-    total: result.value.playerTotal,
-} : {
-    cards: result.value.opponentCards,
-    spades: result.value.opponentSpades,
-    aces: result.value.opponentAces,
-    tables: result.value.opponentTables,
-    total: result.value.opponentTotal,
-}));
-
-const opponentScore = computed(() => (isPlayer1.value ? {
-    cards: result.value.opponentCards,
-    spades: result.value.opponentSpades,
-    aces: result.value.opponentAces,
-    tables: result.value.opponentTables,
-    total: result.value.opponentTotal,
-} : {
-    cards: result.value.playerCards,
-    spades: result.value.playerSpades,
-    aces: result.value.playerAces,
-    tables: result.value.playerTables,
-    total: result.value.playerTotal,
-}));
-
 const gameVariables = ref({
     playerHand: [],
     opponentHand: [],
@@ -86,6 +58,9 @@ const authUserId = page.props.auth.user.id;
 
 const isPlayer1 = computed(() => props.player.id === props.room.player1_id);
 
+const myScore = computed(() => getScore(isPlayer1.value ? 'player' : 'opponent'));
+const opponentScore = computed(() => getScore(isPlayer1.value ? 'opponent' : 'player'));
+
 const myHand = computed(() => (isPlayer1.value ? gameVariables.value.playerHand : gameVariables.value.opponentHand));
 const opponentHandHidden = computed(() => (isPlayer1.value ? gameVariables.value.opponentHand : gameVariables.value.playerHand));
 
@@ -103,6 +78,16 @@ const startGame = async () => {
         isFirstRound: true
     });
 };
+
+function getScore(player) {
+  return {
+    cards: result.value[`${player}Cards`],
+    spades: result.value[`${player}Spades`],
+    aces: result.value[`${player}Aces`],
+    tables: result.value[`${player}Tables`],
+    total: result.value[`${player}Total`],
+  };
+}
 
 const updateGameState = (objA, objB) => {
     for (const key in objB) {
